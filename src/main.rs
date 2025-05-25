@@ -10,19 +10,23 @@ fn create_render_pass(device: &ash::Device, surface_format: vk::Format) -> vk::R
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
         .initial_layout(vk::ImageLayout::UNDEFINED)
-        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
+        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
+        .build();
 
     let color_attachment_ref = vk::AttachmentReference::builder()
         .attachment(0)
-        .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
+        .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+        .build();
 
     let subpass = vk::SubpassDescription::builder()
         .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
-        .color_attachments(&[color_attachment_ref]);
+        .color_attachments(&[color_attachment_ref])
+        .build();
 
     let render_pass_info = vk::RenderPassCreateInfo::builder()
         .attachments(&[color_attachment])
-        .subpasses(&[subpass]);
+        .subpasses(&[subpass])
+        .build();
 
     let render_pass = unsafe {
         device.create_render_pass(&render_pass_info, None)
@@ -34,15 +38,15 @@ fn create_render_pass(device: &ash::Device, surface_format: vk::Format) -> vk::R
 
 fn main() {
     // Initialize Vulkan instance
-    let entry = ash::Entry::new().unwrap();
-    let app_name = std::ffi::CString::new("My Vulkan App").unwrap();
-    let engine_name = std::ffi::CString::new("My Vulkan Engine").unwrap();
+    let entry = unsafe{ash::Entry::load()}.unwrap();
+    let app_name = c"My Vulkan App";
+    let engine_name = c"My Vulkan Engine";
     let app_info = vk::ApplicationInfo::builder()
-        .application_name(&app_name)
+        .application_name(app_name)
         .application_version(1)
-        .engine_name(&engine_name)
+        .engine_name(engine_name)
         .engine_version(1)
-        .api_version(vk::make_version(1, 2, 0));
+        .api_version(vk::make_api_version(0, 1, 2, 0));
     let instance_extensions = [ash::extensions::ext::DebugUtils::name().as_ptr()];
     let instance_create_info = vk::InstanceCreateInfo::builder()
         .application_info(&app_info)
@@ -82,12 +86,26 @@ fn main() {
 
     // Create vertex and fragment shaders
     let vertex_shader_code = include_bytes!("triangle.vert.spv");
+    assert!(vertex_shader_code.len()%4==0);
+    let vertex_shader_code_4 = unsafe{
+    	core::slice::from_raw_parts(
+			vertex_shader_code.as_ptr() as *const u32,
+			vertex_shader_code.len()/4,
+    	)
+    };
     let vertex_shader_module_create_info = vk::ShaderModuleCreateInfo::builder()
-        .code(&vertex_shader_code[..]);
+        .code(vertex_shader_code_4);
     let vertex_shader_module = unsafe { device.create_shader_module(&vertex_shader_module_create_info, None).unwrap() };
     let fragment_shader_code = include_bytes!("triangle.frag.spv");
+    assert!(fragment_shader_code.len()%4==0);
+    let fragment_shader_code_4 = unsafe{
+    	core::slice::from_raw_parts(
+			fragment_shader_code.as_ptr() as *const u32,
+			fragment_shader_code.len()/4,
+    	)
+    };
     let fragment_shader_module_create_info = vk::ShaderModuleCreateInfo::builder()
-        .code(&fragment_shader_code[..]);
+        .code(fragment_shader_code_4);
     let fragment_shader_module = unsafe { device.create_shader_module(&fragment_shader_module_create_info, None).unwrap() };
 
     // Create vertex input binding and attribute descriptions
@@ -115,12 +133,12 @@ fn main() {
         vk::PipelineShaderStageCreateInfo::builder()
             .stage(vk::ShaderStageFlags::VERTEX)
             .module(vertex_shader_module)
-            .name(std::ffi::CString::new("main").unwrap().as_ptr())
+            .name(c"main")
             .build(),
         vk::PipelineShaderStageCreateInfo::builder()
             .stage(vk::ShaderStageFlags::FRAGMENT)
             .module(fragment_shader_module)
-            .name(std::ffi::CString::new("main").unwrap().as_ptr())
+            .name(c"main")
             .build(),
     ];
     let pipeline_vertex_input_state_create_info = vk::PipelineVertexInputStateCreateInfo::builder()
@@ -139,7 +157,7 @@ fn main() {
     let pipeline_multisample_state_create_info = vk::PipelineMultisampleStateCreateInfo::builder()
         .rasterization_samples(vk::SampleCountFlags::TYPE_1);
     let pipeline_color_blend_attachment_state = vk::PipelineColorBlendAttachmentState::builder()
-        .color_write_mask(vk::ColorComponentFlags::all())
+        .color_write_mask(vk::ColorComponentFlags::RGBA)
         .build();
     let pipeline_color_blend_state_create_info = vk::PipelineColorBlendStateCreateInfo::builder()
         .attachments(&[pipeline_color_blend_attachment_state]);
